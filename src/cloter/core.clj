@@ -10,4 +10,6 @@
 
 (defn -main []
   ;(cloui.core/-run render)
+  (cloui.core/-run view/root)
+  ;(render)
   )

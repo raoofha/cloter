@@ -4,7 +4,10 @@
             [system.io]
             [app.console]
             [app.cljs]
-            [app.js]))
+            [app.js]
+            [app.ts]
+            [app.bs]
+            [app.coffee]))
 
 (defn ^:export init []
   (when config/debug?

@@ -78,8 +78,16 @@
   (writeln l)
   (write [:br]))
 
+(defn prompt [p]
+  (swap! state assoc :prompt p)
+  (write p)
+  )
+
 (defn clear []
-  (reset! state default-state))
+  (let [p (:prompt @state)] 
+  (reset! state default-state)
+  (when p (write p))
+  @state))
 
 (defn put! [e]
   (a/put! input-chan e))

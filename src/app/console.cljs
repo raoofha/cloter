@@ -26,7 +26,7 @@
 
 (defn main []
   (go-loop []
-    (io/write [:span.prompt "➤ "])
+    (io/prompt [:span.prompt "➤ "])
     (let [l (<! (io/readln))
           app (goog.object/getValueByKeys js/window "app" l "main")]
       (io/write [:br])

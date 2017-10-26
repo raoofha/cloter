@@ -35,7 +35,11 @@
                     :asset-path           ".stuff/out"
                     :source-map-timestamp true
                     :preloads             [devtools.preload]
-                    :external-config      {:devtools/config {:features-to-install :all}}}}
+                    :external-config      {:devtools/config {:features-to-install :all}}
+                    :install-deps true
+                    :npm-deps {;:typescript "2.5.3"
+                               }
+                    }}
 
     {:id           "min"
      :source-paths ["src"]

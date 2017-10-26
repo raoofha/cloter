@@ -3,3 +3,6 @@ target
 .nrepl-port
 .cljs_rhino_repl
 .stuff
+node_modules
+/package.json
+/package-lock.json

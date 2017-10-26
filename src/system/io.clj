@@ -1,34 +1,42 @@
 (ns system.io
-  (:require [clojure.core.async :as async :refer [>! <! go chan]]
+  #_(:require [clojure.core.async :as async :refer [>! <! go chan]]
             [system.io :as io]))
 
-(defmacro read []
-  ;'(<! system.io/input-chan)
-  '(let [in (<! system.io/input-chan)]
-     (when (= (:value in) "ctrl+c") (throw (js/Error. "terminate")))
-     in
-     )
-  )
+#_(defmacro <? [ch]
+  `(let [~'e (cljs.core.async/<! ~ch)]
+     (if (instance? js/Error ~'e) (throw ~'e) ~'e)))
 
-(defmacro readchar []
-  '(loop []
-     (let [in (system.io/read)
-           {:keys [value]} in]
-       (if (char? value) (do (system.io/write value) value) (recur)))))
+(defmacro <? [ch]
+  `(throw-err (cljs.core.async/<! ~ch)))
 
-(defmacro readln []
-  '(loop [l ""]
-     (let [in (system.io/read)
-           {:keys [value]} in]
-       (if (= value "enter")
-         l
-         (recur (if (char? value) (do (system.io/write value) (str l value)) l))))))
+;(defmacro read []
+  ;;'(<! system.io/input-chan)
+  ;'(let [in (<! system.io/input-chan)]
+     ;(when (char? (:value in)) (system.io/write (:value in)))
+     ;(when (= (:value in) "ctrl+c") (throw (js/Error. "terminate")))
+     ;in
+     ;)
+  ;)
 
-#_(defmacro readln []
-  `(loop [~'l ""]
-     (let [~'in (read)
-           {:keys [~'value]} ~'in]
-       (if (= ~'value "enter")
-         ~'l
-         (recur (if (char? ~'value) (do (write ~'value) (str ~'l ~'value)) ~'l))))))
+;(defmacro readchar []
+  ;'(loop []
+     ;(let [in (system.io/read)
+           ;{:keys [value]} in]
+       ;(if (char? value) (do (system.io/write value) value) (recur)))))
+
+;(defmacro readln []
+  ;'(loop [l ""]
+     ;(let [in (system.io/read)
+           ;{:keys [value]} in]
+       ;(if (= value "enter")
+         ;l
+         ;(recur (if (char? value) (str l value) l))))))
+
+;#_(defmacro readln []
+  ;`(loop [~'l ""]
+     ;(let [~'in (read)
+           ;{:keys [~'value]} ~'in]
+       ;(if (= ~'value "enter")
+         ;~'l
+         ;(recur (if (char? ~'value) (do (write ~'value) (str ~'l ~'value)) ~'l))))))
 

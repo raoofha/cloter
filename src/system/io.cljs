@@ -6,19 +6,107 @@
    [reagent.core :as r]
    [cljs.core.async :as a :refer [<! timeout]]))
 
-(defonce input-chan (a/chan))
+(defonce input-chan (atom nil))
+(defonce input-chans (atom []))
+(defonce event-opts (atom []))
 
 (def default-state {:cursor-index 0
                     :input-start-index 0
                     :mode :insert
                     :out ["\u00a0"]})
 
-(defonce state (r/atom {:cursor-index 0
-                        :input-start-index 0
-                        :mode :insert
-                        :out ["\u00a0"]}))
-;(defonce *display* out)
+(defonce state (r/atom default-state))
 
+(defn render
+  ([]
+   (render (fn []
+             (let [cursor-index (:cursor-index @state)
+                   mode (case (:mode @state)
+                          :insert "input-cursor"
+                          :normal "input-cursor-vim")
+                   current-item (get-in @state [:out cursor-index])
+                   before-items (subvec (:out @state) 0 cursor-index)
+                   after-items (subvec (:out @state) (inc cursor-index))
+                   current-item (cond
+                                  (string? current-item) [:span {:class mode} current-item]
+                                  (vector? current-item)
+                                  (let [[tagname props & body] current-item
+                                        classes (:class props)]
+                                    (if (map? props)
+                                      (into [tagname (assoc props :class (str classes " " mode))] body)
+                                      (into (conj [tagname {:class mode}] props) body)))
+                                  :else (throw (js/Error. "bad hiccup")))]
+               (into [] (concat [:div#out] before-items [current-item] after-items))))))
+  ([root]
+   (render root {:target (.getElementById js/document "app")}))
+  ([root opts]
+   (r/render [root opts] (:target opts))))
+
+(defn input-handler [e]
+  (if goog.DEBUG
+    (when (not (and (.-ctrlKey e) (or (= (.-key e) "r") (= (.-key e) "R")))) (.preventDefault e))
+    (.preventDefault e))
+  (let [;mouse-updown
+        t (case (.-type e)
+            ("keyup" "mouseup") ":up"
+            "mousemove" ":move"
+            nil)
+        s (clojure.string/join
+           "+"
+           (filter #(not (nil? %)) [(when (.-ctrlKey e) "ctrl")
+                                    (when (.-shiftKey e) (if (.-key e) (when (> (.-length (.-key e)) 1) "shift") "shift"))
+                                    (when (.-altKey e) "alt")
+                                    (case (.-key e)
+                                      ("Control" "Shift" "Alt") nil
+                                      nil (case (.-buttons e)
+                                            1 (str "leftmouse" t)
+                                            2 (str "rightmouse" t)
+                                            4 (str "middlemouse" t)
+                                            0 (case (.-type e)
+                                                "mousemove" "mousemove"
+                                                "mouseup" (case (.-button e)
+                                                            0 "leftmouse:up"
+                                                            1 "middlemouse:up"
+                                                            2 "rightmouse:up"
+                                                            nil)
+                                                "wheel" (if (> (.-deltaY e) 0) "scrolldown" "scrollup")
+                                                nil)
+
+                                            nil)
+                                      (if (= (.-length (.-key e)) 1)
+                                        (.-key e) (.toLowerCase (.-key e))))]))
+        in (cond
+             (= 1 (.-length s)) {:value s :type :char}
+             (= (.-type e) "load") {:type :load}
+             (nil? s) nil
+             :else {:value s})]
+    (when in (a/put! @input-chan in))))
+
+(defn remove-events [opts]
+  (. (:target opts) removeEventListener "keydown" input-handler)
+  (. (:target opts) removeEventListener "mousedown" input-handler)
+  (. (:target opts) removeEventListener "mouseup" input-handler)
+  (. (:target opts) removeEventListener "mousemove" input-handler)
+  (. (:target opts) removeEventListener "wheel" input-handler)
+  (. (:target opts) removeEventListener "contextmenu" input-handler)
+  (js/window.removeEventListener "load" input-handler)
+  (js/window.cancelAnimationFrame (:time opts)))
+
+(defn register-events [opts]
+  (when (:keydown opts)
+    (. (:target opts) addEventListener "keydown" input-handler))
+  (when (:mousedown opts)
+    (. (:target opts) addEventListener "mousedown" input-handler))
+  (when (:mouseup opts)
+    (. (:target opts) addEventListener "mouseup" input-handler))
+  (when (:mousemove opts)
+    (. (:target opts) addEventListener "mousemove" input-handler))
+  (when (:wheel opts)
+    (. (:target opts) addEventListener "wheel" input-handler))
+  (when (:load opts)
+    (js/window.addEventListener "load" input-handler))
+  (when (:contextmenu opts)
+    (js/window.addEventListener "contextmenu" input-handler)))
 
 (defn convert-space->nbsp [s]
   (if (string? s)
@@ -26,10 +114,12 @@
     (if (coll? s) (into [] (map #(convert-space->nbsp %) s)) s)))
 
 (defn scroll-down []
-  (go
-    (<! (timeout 100))
-    (when-let [el (js/document.getElementById "out")]
-      (goog.object/set el "scrollTop"  js/Number.MAX_SAFE_INTEGER))))
+  (r/after-render #(when-let [el (js/document.getElementById "out")]
+                     (goog.object/set el "scrollTop"  js/Number.MAX_SAFE_INTEGER)))
+  #_(go
+      (<! (timeout 100))
+      (when-let [el (js/document.getElementById "out")]
+        (goog.object/set el "scrollTop"  js/Number.MAX_SAFE_INTEGER))))
 
 (defn extract-string [hc]
   (if (string? hc)
@@ -62,7 +152,11 @@
    @state))
 
 (defn write [v]
-  (let [out (merge (subvec (:out @state) 0 (dec (count (:out @state)))) (convert-space->nbsp v) (last (:out @state)))
+  (let [v (cond
+            (keyword? v) [v]
+            (fn? v) [v]
+            :else v)
+        out (merge (subvec (:out @state) 0 (dec (count (:out @state)))) (convert-space->nbsp v) (last (:out @state)))
         l (dec (count out))]
     (swap! state assoc
            :out out
@@ -71,26 +165,25 @@
   (scroll-down))
 
 (defn writeln [l]
-  (write [:br])
+  (write :br)
   (write l))
 
 (defn writelnn [l]
   (writeln l)
-  (write [:br]))
+  (write :br))
 
 (defn prompt [p]
   (swap! state assoc :prompt p)
-  (write p)
-  )
+  (write p))
 
 (defn clear []
-  (let [p (:prompt @state)] 
-  (reset! state default-state)
-  (when p (write p))
-  @state))
+  (let [p (:prompt @state)]
+    (reset! state default-state)
+    (when p (write p))
+    @state))
 
 (defn put! [e]
-  (a/put! input-chan e))
+  (a/put! @input-chan e))
 
 (defn mark-input-start []
   (swap! state assoc :input-start-index (dec (count (:out @state)))))
@@ -155,6 +248,15 @@
       (cursor-move-right)
       (delete-char)))
 
+(defn terminate []
+  (when (> (count @input-chans) 0)
+    (reset! input-chan (last @input-chans))
+    (reset! input-chans (into [] (rest @input-chans)))
+    (remove-events (last @event-opts))
+    (reset! event-opts (into [] (butlast @event-opts)))
+    (register-events (last @event-opts))
+    (throw (js/Error. "terminate"))))
+
 (def shortcuts
   {:insert  [[:char #(write-at (:value %2))]
              ["ctrl+l" clear]
@@ -167,7 +269,7 @@
               ;["enter" execute :execute]
              ["backspace" delete-char-pre]
              ["escape" cursor-move-left :normal]
-             ["ctrl+c" #(throw (js/Error. "terminate"))]]
+             ["ctrl+c" terminate]]
    :normal [["h" cursor-move-left]
             ["l" cursor-move-right]
             ["k" pre-input]
@@ -181,7 +283,7 @@
             ["x" delete-char]
              ;["enter" execute :execute]
             ["backspace" cursor-move-left]
-            ["ctrl+c" #(throw (js/Error. "terminate"))]]})
+            ["ctrl+c" terminate]]})
 
 (defn resolve-shortcut [state in]
   (let [kbs ((:mode state) shortcuts)]
@@ -202,7 +304,7 @@
 
 (defn read []
   (go (try
-        (let [in (<! input-chan)
+        (let [in (<! @input-chan)
               st (resolve-shortcut @state in)]
           (reset! state st)
           in)
@@ -223,45 +325,21 @@
         (if (instance? js/Error v) v
             (recur (if (char? v) (str l v) l)))))))
 
-(defn readln []
-  (go-loop []
-    (try
-      (let [in (io/<? (read))
-            {v :value} in]
-        (if (= v "enter")
-          (let [l (extract-string (butlast (subvec (:out @state) (:input-start-index @state))))]
-            (mark-input-start)
-            (swap! state assoc :cursor-index (dec (count (:out @state))) :mode :insert)
-            l)
-          (recur)))
-      (catch js/Error e e))))
-
-(defn render
-  ([]
-   (render (fn []
-             (let [cursor-index (:cursor-index @state)
-                   mode (case (:mode @state)
-                          :insert "input-cursor"
-                          :normal "input-cursor-vim")
-                   current-item (get-in @state [:out cursor-index])
-                   before-items (subvec (:out @state) 0 cursor-index)
-                   after-items (subvec (:out @state) (inc cursor-index))
-                   current-item (cond
-                                  (string? current-item) [:span {:class mode} current-item]
-                                  (vector? current-item)
-                                  (let [[tagname props & body] current-item
-                                        classes (:class props)]
-                                    (if (map? props)
-                                      (into [tagname (assoc props :class (str classes " " mode))] body)
-                                      (into (conj [tagname {:class mode}] props) body)))
-                                  :else (throw (js/Error. "bad hiccup")))]
-               (into [] (concat [:div#out] before-items [current-item] after-items))))))
-  ([root]
-   (render root {}))
-  ([root opts]
-   (r/render
-    [root opts]
-    (.getElementById js/document "app"))))
+(defn readln
+  ([] (readln {:not-empty true}))
+  ([opts]
+   (go-loop []
+     (try
+       (let [in (io/<? (read))
+             {v :value} in]
+         (if (= v "enter")
+           (let [l (extract-string (butlast (subvec (:out @state) (:input-start-index @state))))]
+             (when (and (= l "") (:not-empty opts)) (recur))
+             (mark-input-start)
+             (swap! state assoc :cursor-index (dec (count (:out @state))) :mode :insert)
+             l)
+           (recur)))
+       (catch js/Error e e)))))
 
 (defn init
   ([]
@@ -272,66 +350,16 @@
           :wheel false
           :load true
           :contextmenu true
-          :time false}))
-  ([opts] (let [animation-handler
+          :time false
+          :target js/window}))
+  ([opts] (let [_ (when @input-chan (swap! input-chans conj @input-chan))
+                _ (reset! input-chan (a/chan))
+                animation-handler
                 (fn animation-handler [e]
-                  (a/put! input-chan {:value e :type :time})
+                  (a/put! @input-chan {:value e :type :time})
                   (js/window.requestAnimationFrame animation-handler))
-                input-handler
-                (fn [e]
-                  (if goog.DEBUG
-                    (when (not (and (.-ctrlKey e) (or (= (.-key e) "r") (= (.-key e) "R")))) (.preventDefault e))
-                    (.preventDefault e))
-                  (let [;mouse-updown
-                        t (case (.-type e)
-                            ("keyup" "mouseup") ":up"
-                            "mousemove" ":move"
-                            nil)
-                        s (clojure.string/join
-                           "+"
-                           (filter #(not (nil? %)) [(when (.-ctrlKey e) "ctrl")
-                                                    (when (.-shiftKey e) (if (.-key e) (when (> (.-length (.-key e)) 1) "shift") "shift"))
-                                                    (when (.-altKey e) "alt")
-                                                    (case (.-key e)
-                                                      ("Control" "Shift" "Alt") nil
-                                                      nil (case (.-buttons e)
-                                                            1 (str "leftmouse" t)
-                                                            2 (str "rightmouse" t)
-                                                            4 (str "middlemouse" t)
-                                                            0 (case (.-type e)
-                                                                "mousemove" "mousemove"
-                                                                "mouseup" (case (.-button e)
-                                                                            0 "leftmouse:up"
-                                                                            1 "middlemouse:up"
-                                                                            2 "rightmouse:up"
-                                                                            nil)
-                                                                "wheel" (if (> (.-deltaY e) 0) "scrolldown" "scrollup")
-                                                                nil)
-
-                                                            nil)
-                                                      (if (= (.-length (.-key e)) 1)
-                                                        (.-key e) (.toLowerCase (.-key e))))]))
-                        in (cond
-                             (= 1 (.-length s)) {:value s :type :char}
-                             (= (.-type e) "load") {:type :load}
-                             (nil? s) nil
-                             :else {:value s})]
-                    (when in (a/put! input-chan in))))]
-            (when (:keydown opts)
-              (js/window.addEventListener "keydown" input-handler))
-            (when (:mousedown opts)
-              (js/window.addEventListener "mousedown" input-handler))
-            (when (:mouseup opts)
-              (js/window.addEventListener "mouseup" input-handler))
-            (when (:mousemove opts)
-              (js/window.addEventListener "mousemove" input-handler))
-            (when (:wheel opts)
-              (js/window.addEventListener "wheel" input-handler))
-            (when (:load opts)
-              (js/window.addEventListener "load" input-handler))
-            (when (:contextmenu opts)
-              (js/window.addEventListener "contextmenu" input-handler))
-            (when (:time opts)
-              (js/window.requestAnimationFrame animation-handler))
+                anim-id (when (:time opts) (js/window.requestAnimationFrame animation-handler))]
+            (swap! event-opts conj (assoc opts :time anim-id))
+            (register-events opts)
             (render))))
 

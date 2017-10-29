@@ -3,12 +3,20 @@
                  [org.clojure/clojurescript "1.9.946"]
                  ;[reagent "0.6.2"]
                  [reagent "0.7.0"]
+                 [compojure "1.5.1"]
+                 [ring/ring-defaults "0.2.1"]
+                 [hiccup "1.0.5"]
+                 [environ "1.1.0"]
+                 [ring/ring-core "1.6.2"]
+                 [ring/ring-jetty-adapter "1.6.2"]
                  ]
   :plugins [[lein-cljsbuild "1.1.7"]]
   :min-lein-version "2.5.3"
+  ;:main cloter.server
   :clean-targets ^{:protect false} [".stuff" "target" "resources/public/.stuff"]
 
   :figwheel {:css-dirs ["resources/public"]
+             :ring-handler cloter.server/app
              :server-port   3000
              :server-logfile ".stuff/figwheel-server.log"
              }
@@ -36,9 +44,8 @@
                     :source-map-timestamp true
                     :preloads             [devtools.preload]
                     :external-config      {:devtools/config {:features-to-install :all}}
-                    :install-deps true
-                    :npm-deps {;:typescript "2.5.3"
-                               }
+                    ;:install-deps true
+                    ;:npm-deps {}
                     }}
 
     {:id           "min"

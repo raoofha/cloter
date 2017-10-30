@@ -1,3 +1,7 @@
+# cloter
+
+### simple clojurescript repl
+```clj
 (ns app.cljs
   (:require [system.io :as io :refer-macros [<? defmain]]
             [cljs.js :refer [empty-state eval-str js-eval]]))
@@ -16,3 +20,13 @@
          (fn [res]
            (io/writelnn (pr-str (:value res))))))
       (recur))))
+```
+
+### date command
+```clj
+(ns app.date
+  (:require [system.io :as io :refer-macros [<? defmain]]))
+
+(defmain []
+  (io/write (js/String (js/Date.))))
+```

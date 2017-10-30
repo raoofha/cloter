@@ -14,5 +14,5 @@
           app (goog.object/getValueByKeys js/window "app" l "main")
           ]
       (io/write :br)
-      (when app (<! (app)) (io/write [:br]))
+      (when app (<! (app)) (io/write :br))
       (recur))))

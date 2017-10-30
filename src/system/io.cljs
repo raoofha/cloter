@@ -13,6 +13,7 @@
 (def default-state {:cursor-index 0
                     :input-start-index 0
                     :mode :insert
+                    :focus true
                     :out ["\u00a0"]})
 
 (defonce state (r/atom default-state))
@@ -22,8 +23,9 @@
    (render (fn []
              (let [cursor-index (:cursor-index @state)
                    mode (case (:mode @state)
-                          :insert "input-cursor"
-                          :normal "input-cursor-vim")
+                          :insert "cursor-insert"
+                          :normal "cursor-normal")
+                   mode (when (:focus @state) mode)
                    current-item (get-in @state [:out cursor-index])
                    before-items (subvec (:out @state) 0 cursor-index)
                    after-items (subvec (:out @state) (inc cursor-index))
@@ -78,9 +80,15 @@
         in (cond
              (= 1 (.-length s)) {:value s :type :char}
              (= (.-type e) "load") {:type :load}
+             (= (.-type e) "focus") {:type :focus}
+             (= (.-type e) "blur") {:type :blur}
              (nil? s) nil
              :else {:value s})]
     (when in (a/put! @input-chan in))))
+
+(defn animation-handler [e]
+  (a/put! @input-chan {:value e :type :time})
+  (js/window.requestAnimationFrame animation-handler))
 
 (defn remove-events [opts]
   (. (:target opts) removeEventListener "keydown" input-handler)
@@ -89,24 +97,22 @@
   (. (:target opts) removeEventListener "mousemove" input-handler)
   (. (:target opts) removeEventListener "wheel" input-handler)
   (. (:target opts) removeEventListener "contextmenu" input-handler)
+  (. (:target opts) removeEventListener "blur" input-handler)
+  (. (:target opts) removeEventListener "focus" input-handler)
   (js/window.removeEventListener "load" input-handler)
   (js/window.cancelAnimationFrame (:time opts)))
 
 (defn register-events [opts]
-  (when (:keydown opts)
-    (. (:target opts) addEventListener "keydown" input-handler))
-  (when (:mousedown opts)
-    (. (:target opts) addEventListener "mousedown" input-handler))
-  (when (:mouseup opts)
-    (. (:target opts) addEventListener "mouseup" input-handler))
-  (when (:mousemove opts)
-    (. (:target opts) addEventListener "mousemove" input-handler))
-  (when (:wheel opts)
-    (. (:target opts) addEventListener "wheel" input-handler))
-  (when (:load opts)
-    (js/window.addEventListener "load" input-handler))
-  (when (:contextmenu opts)
-    (js/window.addEventListener "contextmenu" input-handler)))
+  (when (:keydown opts) (. (:target opts) addEventListener "keydown" input-handler))
+  (when (:mousedown opts) (. (:target opts) addEventListener "mousedown" input-handler))
+  (when (:mouseup opts) (. (:target opts) addEventListener "mouseup" input-handler))
+  (when (:mousemove opts) (. (:target opts) addEventListener "mousemove" input-handler))
+  (when (:wheel opts) (. (:target opts) addEventListener "wheel" input-handler))
+  (when (:contextmenu opts) (. (:target opts) addEventListener "contextmenu" input-handler))
+  (when (:blur opts) (. (:target opts) addEventListener "blur" input-handler))
+  (when (:focus opts) (. (:target opts) addEventListener "focus" input-handler))
+  (when (:load opts) (js/window.addEventListener "load" input-handler))
+  (assoc opts :time (when (:time opts) (js/window.requestAnimationFrame animation-handler))))
 
 (defn convert-space->nbsp [s]
   (if (string? s)
@@ -258,8 +264,11 @@
     (throw (js/Error. "terminate"))))
 
 (def shortcuts
-  {:insert  [[:char #(write-at (:value %2))]
-             ["ctrl+l" clear]
+  {:* [["ctrl+c" terminate]
+       [:blur #(assoc % :focus false)]
+       [:focus #(assoc % :focus true)]
+             ["ctrl+l" clear]]
+  :insert  [[:char #(write-at (:value %2))]
              ["arrowleft" cursor-move-left]
              ["arrowright" cursor-move-right]
              ["arrowup" pre-input]
@@ -268,8 +277,7 @@
              ["end" cursor-move-end+1]
               ;["enter" execute :execute]
              ["backspace" delete-char-pre]
-             ["escape" cursor-move-left :normal]
-             ["ctrl+c" terminate]]
+             ["escape" cursor-move-left :normal]]
    :normal [["h" cursor-move-left]
             ["l" cursor-move-right]
             ["k" pre-input]
@@ -282,31 +290,34 @@
             ["$" cursor-move-end]
             ["x" delete-char]
              ;["enter" execute :execute]
-            ["backspace" cursor-move-left]
-            ["ctrl+c" terminate]]})
+            ["backspace" cursor-move-left]]})
+
+(defn resolve-shortcut-from-bindings [kbs state in]
+  (loop [kbs kbs]
+    (let [[kb f next-mode] (first kbs)
+          capture? (cond
+                     (= :* kb) (fn [] true)
+                     (string? kb) #(= kb (:value %))
+                     (keyword? kb) #(= kb (:type %))
+                     :else kb)]
+      (if (capture? in)
+        (let [st (if f (f state in) state)
+              st (if (nil? st) state st)
+              flag (and next-mode (not (false? st)))
+              st (if flag (assoc st :mode next-mode) st)]
+          st)
+        (if (> (count kbs) 1) (recur (rest kbs)) nil)))))
 
 (defn resolve-shortcut [state in]
-  (let [kbs ((:mode state) shortcuts)]
-    (loop [kbs kbs]
-      (let [[kb f next-mode] (first kbs)
-            capture? (cond
-                       (= :* kb) (fn [] true)
-                       (string? kb) #(= kb (:value %))
-                       (keyword? kb) #(= kb (:type %))
-                       :else kb)]
-        (if (capture? in)
-          (let [st (if f (f state in) state)
-                st (if (nil? st) state st)
-                flag (and next-mode (not (false? st)))
-                st (if flag (assoc st :mode next-mode) st)]
-            st)
-          (if (> (count kbs) 1) (recur (rest kbs)) state))))))
+  (let [st (resolve-shortcut-from-bindings (:* shortcuts) state in)]
+    (if st st
+     (resolve-shortcut-from-bindings ((:mode state) shortcuts) state in))))
 
 (defn read []
   (go (try
         (let [in (<! @input-chan)
               st (resolve-shortcut @state in)]
-          (reset! state st)
+          (when st (reset! state st))
           in)
         (catch js/Error e e))))
 
@@ -351,15 +362,10 @@
           :load true
           :contextmenu true
           :time false
+          :blur true
+          :focus true
           :target js/window}))
-  ([opts] (let [_ (when @input-chan (swap! input-chans conj @input-chan))
-                _ (reset! input-chan (a/chan))
-                animation-handler
-                (fn animation-handler [e]
-                  (a/put! @input-chan {:value e :type :time})
-                  (js/window.requestAnimationFrame animation-handler))
-                anim-id (when (:time opts) (js/window.requestAnimationFrame animation-handler))]
-            (swap! event-opts conj (assoc opts :time anim-id))
-            (register-events opts)
-            (render))))
-
+  ([opts] (when @input-chan (swap! input-chans conj @input-chan))
+          (reset! input-chan (a/chan))
+          (swap! event-opts conj (register-events opts))
+          (render)))

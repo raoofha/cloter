@@ -1,9 +1,5 @@
 (ns app.js
-  (:require-macros
-   [system.io :refer [<? defmain]]
-   [cljs.core.async.macros :refer [go go-loop]])
-  (:require [system.io :as io]
-            [clojure.core.async]))
+  (:require [system.io :as io :refer-macros [<? defmain]]))
 
 (defmain []
   (system.io/init)

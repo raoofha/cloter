@@ -1,3 +1,6 @@
+* {
+  cursor: default;
+}
 body {
   margin: 0;
   background-color: black;
@@ -45,12 +48,12 @@ pre {
 }
 
 
-.input-cursor {
+.cursor-insert {
     /*border-left-style: solid;*/
     /*border-left-color: green;*/
     box-shadow: inset 2px 0px 0px 0px green;
 }
-.input-cursor-vim {
+.cursor-normal {
     background-color: rgba(255, 255, 255, 0.68);
     color: black;
 }

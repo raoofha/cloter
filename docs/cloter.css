@@ -1,1 +1,83 @@
-../resources/public/cloter.css
+* {
+  cursor: default;
+}
+body {
+  margin: 0;
+  background-color: black;
+  /*background-color: white;*/
+  color: white;
+  /*color: black;*/
+  height: 100%;
+  overflow: hidden;
+  /*user-select: none;*/
+  cursor: default;
+  font-size: 16px;
+  font-family: monospace;
+}
+
+#out {
+  overflow-wrap: break-word;
+  overflow-y: scroll;
+  height:100%;
+}
+
+pre {
+  margin: 0;
+}
+
+#prompt-parent {
+  width: 100%;
+}
+.prompt {
+  /*position:absolute;*/
+  color:#c47f2c; /*#c4610f;*/
+}
+.console {
+  /*height: 30px;*/
+  /*min-height: 20px;*/
+  width: 100%;
+  /*background-color: rgba(0, 0, 0, 1);*/
+  /*position: absolute;*/
+  /*bottom: 0;*/
+  /*z-index: 5;*/
+  margin: 0;
+  word-wrap: break-word;
+  position:absolute;
+  overflow-y: scroll;
+  height:100%;
+}
+
+
+.cursor-insert {
+    /*border-left-style: solid;*/
+    /*border-left-color: green;*/
+    box-shadow: inset 2px 0px 0px 0px green;
+}
+.cursor-normal {
+    background-color: rgba(255, 255, 255, 0.68);
+    color: black;
+}
+
+
+
+
+
+
+
+
+
+::-webkit-scrollbar-track,
+ ::-webkit-scrollbar-corner {
+  background-color: black;
+}
+
+::-webkit-scrollbar {
+  cursor: default;
+  width: 10px;
+  height: 10px;
+  background-color: #F5F5F5;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #0e0e0e;
+}

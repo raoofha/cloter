@@ -1,0 +1,8 @@
+{
+  "name": "cloter",
+  "version": "0.0.0",
+  "minimum_chrome_version": "10.0",
+  "devtools_page": "devtools.html",
+  "manifest_version": 2,
+  "content_security_policy": "script-src 'self' 'sha256-CfMPE8ys/ylJ5D9qKG0a9/UejrcczMr4/EmFCbVbgcc=' 'sha256-G6IVkG6kpsC0mzSSlqLK5lAp3K3nvA+9NcM2KIof0is=' 'sha256-eXOnyjEz6FiynhuIL8qbPMHjqtMl2jRdpceNhmmekhE=' 'sha256-XsBu2nEJnS7x/Izq1v7dzy3Ze5myJMHvg4zukh/R1Yk=' 'sha256-9u7AmB7ic+5ZwmAX9pYVjAWMPCRdN+qFaK9HdOxRl48=' 'sha256-yiCuQWMp8HGivtLG7GSzDj4NfsHHRAxFwxTCTeI9ls8=' 'unsafe-eval' ; object-src 'self' "
+}

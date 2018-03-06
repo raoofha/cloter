@@ -6,4 +6,4 @@
   (io/write "hello world")
   (io/write (fn []
               [:span {:style {:background-color :grey :color :black}}
-               [:input {:placeholder "don't type here"}]])))
+               [:input {:placeholder "you can't type here"}]])))

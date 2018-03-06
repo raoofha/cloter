@@ -2,4 +2,4 @@
   (:require [system.io :as io :refer-macros [<? defmain]]))
 
 (defmain []
-  (io/write (js/String (js/Date.))))
+  (io/write (js/Date)))

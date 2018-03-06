@@ -3,6 +3,11 @@ target
 .nrepl-port
 .cljs_rhino_repl
 .stuff
+.cljs-stuff
+.cljs-stuff-whitespace
+.cljs-stuff-simple
+.cljs-stuff-advanced
 node_modules
 /package.json
 /package-lock.json
+/resources/public/cloter.js
